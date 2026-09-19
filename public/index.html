@@ -1,0 +1,864 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>GraphQL Mission Control</title>
+<style>
+  /* Palette matches the GraphQL Virtual page on guild.host: near-black, light text, purple accent. */
+  :root {
+    --bg: #121212;
+    --panel: #181819;
+    --line: #2a2a2e;
+    --text: #f8f7fc;
+    --muted: #9a97a8;
+    --dim: #5f5d6b;
+    --purple: #6e33eb;
+    --purple-2: #5533eb;
+    --lilac: #a78bfa;
+    --pink: #e10098;
+    --mono: "SF Mono", ui-monospace, Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; overflow: hidden; }
+  canvas#space { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .ui { position: fixed; inset: 0; display: grid; grid-template-columns: 480px 1fr; grid-template-rows: auto 1fr auto; gap: 0 24px; padding: 0 24px; pointer-events: none; }
+  .ui > * { pointer-events: auto; }
+
+  /* top line */
+  .top { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; height: 52px; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .top .name { font-weight: 600; }
+  .top .tag { color: var(--muted); }
+  .top .spacer { flex: 1; }
+  .top a, .top button { color: var(--muted); background: none; border: 0; font: inherit; cursor: pointer; text-decoration: none; padding: 0; }
+  .top a:hover, .top button:hover { color: var(--text); }
+
+  /* left column */
+  .left { display: flex; flex-direction: column; min-height: 0; padding: 18px 0; gap: 18px; }
+  .panel { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .panel .head { display: flex; align-items: center; padding: 8px 14px; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line); }
+  .panel .head .spacer { flex: 1; }
+  .editor-panel { flex: 1.15; }
+  .response-panel { flex: 1; }
+
+  .editor { position: relative; flex: 1; min-height: 0; font-family: var(--mono); font-size: 15px; line-height: 1.6; }
+  .editor pre, .editor textarea { margin: 0; padding: 14px 16px; border: 0; width: 100%; height: 100%; font: inherit; white-space: pre; overflow: auto; tab-size: 2; }
+  .editor pre { position: absolute; inset: 0; pointer-events: none; color: var(--text); }
+  .editor textarea { position: absolute; inset: 0; background: transparent; color: transparent; caret-color: var(--lilac); resize: none; outline: none; }
+  .editor textarea::selection { background: rgba(167,139,250,.25); }
+  .tok-comment { color: var(--dim); }
+  .tok-kw { color: var(--lilac); }
+  .tok-field { color: var(--text); }
+  .tok-arg { color: var(--muted); }
+  .tok-str { color: #c9b8ff; }
+  .tok-num { color: #c9b8ff; }
+  .tok-enum { color: #c9b8ff; }
+  .tok-punct { color: var(--dim); }
+
+  .editor textarea::placeholder { color: #3a3944; }
+  .vars { display: none; align-items: center; gap: 10px; padding: 8px 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12.5px; }
+  .vars.show { display: flex; }
+  .vars label { color: var(--dim); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-family: var(--sans); }
+  .vars input { flex: 1; background: none; border: 0; color: #c9b8ff; font: inherit; outline: none; }
+  .foot { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-top: 1px solid var(--line); }
+  .run { background: linear-gradient(var(--purple), var(--purple-2)); color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .run:hover { filter: brightness(1.1); }
+  .run:disabled { opacity: .6; }
+  .run kbd { font-family: var(--mono); font-size: 11px; opacity: .7; margin-left: 6px; font-weight: 400; }
+  .hint { color: var(--muted); font-size: 12.5px; line-height: 1.4; }
+  .hint code { font-family: var(--mono); color: var(--text); font-size: 12px; }
+
+  .response { flex: 1; min-height: 0; overflow: auto; padding: 14px 16px; margin: 0; font-family: var(--mono); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+  .response.empty { color: var(--dim); font-family: var(--sans); }
+  .j-key { color: var(--muted); }
+  .j-str { color: var(--text); }
+  .j-num { color: #c9b8ff; }
+  .j-bool { color: #c9b8ff; }
+  .j-null { color: var(--lilac); font-weight: 600; }
+  .j-punct { color: var(--dim); }
+  .sub { display: none; border-top: 1px solid var(--line); padding: 8px 14px; font-family: var(--mono); font-size: 12px; }
+  .sub.show { display: block; }
+  .sub .row { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .sub .row .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--lilac); box-shadow: 0 0 8px var(--lilac); animation: pulse 1.2s infinite alternate; }
+  @keyframes pulse { to { opacity: .25 } }
+  .sub .row .spacer { flex: 1; }
+  .sub .row button { background: none; border: 0; color: var(--dim); font: inherit; cursor: pointer; }
+  .sub .row button:hover { color: var(--text); }
+  .sub ul { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; max-height: 84px; overflow: auto; }
+  .sub li { color: var(--text); }
+  .sub li .t { color: var(--dim); margin-right: 8px; }
+  .sub li b { color: var(--lilac); font-weight: 600; }
+  .stats { display: flex; gap: 14px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--line); font-family: var(--mono); font-size: 12px; color: var(--muted); min-height: 36px; flex-wrap: wrap; }
+  .stats b { color: var(--text); font-weight: 600; }
+  .stats .rest { width: 100%; color: var(--dim); }
+  .stats .rest b { color: var(--muted); }
+
+  /* stage */
+  .stage { position: relative; pointer-events: none; }
+  .caption { position: absolute; left: 0; right: 0; bottom: 22px; text-align: center; font-size: 16px; color: var(--muted); }
+  .caption b { color: var(--text); font-weight: 600; }
+
+  /* steps */
+  .steps { grid-column: 1 / -1; display: flex; gap: 4px; align-items: center; height: 54px; border-top: 1px solid var(--line); font-size: 13px; }
+  .steps .label { color: var(--dim); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; margin-right: 12px; }
+  .step { background: none; border: 0; color: var(--muted); font: inherit; cursor: pointer; padding: 6px 12px; border-radius: 6px; display: flex; gap: 8px; align-items: center; }
+  .step .n { font-family: var(--mono); font-size: 11px; color: var(--dim); }
+  .step:hover { color: var(--text); }
+  .step.active { color: var(--text); background: #1f1f24; }
+  .step.active .n { color: var(--lilac); }
+  .step.race { margin-left: auto; color: var(--lilac); }
+
+  /* schema drawer */
+  .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(500px, 90vw); background: var(--panel); border-left: 1px solid var(--line); transform: translateX(100%); transition: transform .2s ease; display: flex; flex-direction: column; z-index: 20; }
+  .drawer.open { transform: none; }
+  .drawer .head { display: flex; align-items: center; padding: 14px 20px; border-bottom: 1px solid var(--line); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--dim); }
+  .drawer .head .spacer { flex: 1; }
+  .drawer .head button { background: none; border: 0; color: var(--muted); font: inherit; cursor: pointer; }
+  .drawer pre { flex: 1; overflow: auto; margin: 0; padding: 18px 20px; font-family: var(--mono); font-size: 13.5px; line-height: 1.6; white-space: pre-wrap; }
+  .tok-type { color: #c9b8ff; }
+  .tok-doc { color: var(--dim); }
+  .tok-bang { color: var(--pink); font-weight: 700; }
+
+  /* finale */
+  .modal-bg { position: fixed; inset: 0; background: rgba(18,18,18,.85); display: none; place-items: center; z-index: 30; }
+  .modal-bg.open { display: grid; }
+  .modal { width: min(900px, 94vw); max-height: 92vh; overflow: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 26px 30px; }
+  .modal h2 { margin: 0 0 6px; font-size: 20px; font-weight: 600; }
+  .modal .sub { color: var(--muted); margin-bottom: 22px; font-size: 14px; }
+  .modal .sub em { color: var(--text); font-style: normal; }
+  .lane { border-top: 1px solid var(--line); padding: 18px 0; position: relative; }
+  .lane h3 { margin: 0 0 12px; font-size: 14px; font-weight: 600; display: flex; gap: 10px; align-items: baseline; }
+  .lane h3 .tag { color: var(--muted); font-weight: 400; font-size: 13px; }
+  .lane .track { height: 6px; background: #232327; border-radius: 3px; overflow: hidden; margin-bottom: 12px; }
+  .lane .track i { display: block; height: 100%; width: 0; border-radius: 3px; background: var(--muted); }
+  .lane.gql .track i { background: linear-gradient(90deg, var(--purple), var(--lilac)); }
+  .hops { display: flex; gap: 8px; flex-wrap: wrap; min-height: 46px; }
+  .hop { font-family: var(--mono); font-size: 12.5px; border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; display: flex; flex-direction: column; gap: 2px; }
+  .hop .m { color: var(--muted); font-size: 11.5px; }
+  .hop.pending { opacity: .5; }
+  .hop.pending::after { content: " ..."; }
+  .lane .result { font-family: var(--mono); font-size: 13px; margin-top: 10px; display: flex; gap: 20px; color: var(--muted); }
+  .lane .result b { color: var(--text); font-size: 16px; }
+  .lane.gql .result b { color: var(--lilac); }
+  .verdict { border-top: 1px solid var(--line); padding: 18px 0 6px; font-size: 17px; min-height: 40px; }
+  .verdict b { color: var(--lilac); }
+  .modal .actions { display: flex; gap: 14px; justify-content: flex-end; align-items: center; margin-top: 10px; }
+  .modal .actions .close { background: none; border: 0; color: var(--muted); font: inherit; cursor: pointer; }
+  .modal .fine { color: var(--dim); font-size: 12px; margin-top: 14px; }
+</style>
+</head>
+<body>
+
+<canvas id="space"></canvas>
+
+<div class="ui">
+  <div class="top">
+    <span class="name">GraphQL Mission Control</span>
+    <span class="tag">Point the telescope at exactly what you want.</span>
+    <span class="spacer"></span>
+    <button id="btnSchema">Schema</button>
+    <a href="/graphql" target="_blank" rel="noopener">GraphiQL ↗</a>
+  </div>
+
+  <div class="left">
+    <section class="panel editor-panel">
+      <div class="head">Query <span class="spacer"></span><span id="stepTitle"></span></div>
+      <div class="editor">
+        <pre id="hl" aria-hidden="true"></pre>
+        <textarea id="q" spellcheck="false" autocomplete="off" autocapitalize="off"></textarea>
+      </div>
+      <div class="vars" id="vars"><label>Variables</label><input id="varsInput" spellcheck="false" placeholder='{ "name": "Jupiter" }' /></div>
+      <div class="foot">
+        <button class="run" id="btnRun">Run <kbd>⌘⏎</kbd></button>
+        <span class="hint" id="stepNote"></span>
+      </div>
+    </section>
+
+    <section class="panel response-panel">
+      <div class="head">Response <span class="spacer"></span><span id="status"></span></div>
+      <pre class="response empty" id="out">The answer shows up here, in the same shape as the question.</pre>
+      <div class="sub" id="sub">
+        <div class="row"><span class="dot"></span><span id="subTitle">Listening to missionUpdates</span><span class="spacer"></span><button id="btnSubStop">Stop</button></div>
+        <ul id="subList"></ul>
+      </div>
+      <div class="stats" id="stats"></div>
+    </section>
+  </div>
+
+  <div class="stage" id="stage">
+    <div class="caption" id="caption">Run a query. This side only shows what you asked for.</div>
+  </div>
+
+  <div class="steps" id="steps">
+    <span class="label">Demo</span>
+    <button class="step race" id="btnRace">One request vs. many →</button>
+  </div>
+</div>
+
+<aside class="drawer" id="drawer">
+  <div class="head">schema.graphql <span class="spacer"></span><button id="btnCloseDrawer">Close</button></div>
+  <pre id="sdl">loading</pre>
+</aside>
+
+<div class="modal-bg" id="raceBg">
+  <div class="modal">
+    <h2>One request vs. many</h2>
+    <div class="sub">Same question to both APIs: <em>"Mars, and the names of its moons."</em> Both get the same 200 ms of simulated network latency per request.</div>
+    <div class="lane rest" id="laneRest">
+      <h3>REST <span class="tag">the planet gives you links to the moons, so you fetch each one</span></h3>
+      <div class="track"><i id="restBar"></i></div>
+      <div class="hops" id="restHops"></div>
+      <div class="result" id="restResult"></div>
+    </div>
+    <div class="lane gql" id="laneGql">
+      <h3>GraphQL <span class="tag">describe the shape, get the shape</span></h3>
+      <div class="track"><i id="gqlBar"></i></div>
+      <div class="hops" id="gqlHops"></div>
+      <div class="result" id="gqlResult"></div>
+    </div>
+    <div class="verdict" id="verdict"></div>
+    <div class="actions">
+      <button class="close" id="btnRaceClose">Close</button>
+      <button class="run" id="btnRaceStart">Start</button>
+    </div>
+    <div class="fine">Bytes are real response sizes from this server. The REST planet endpoint returns everything it knows (orbit, atmosphere, missions, image URLs) plus a link to each moon. That is just how REST works.</div>
+  </div>
+</div>
+
+<script>
+/* The run-of-show. Click a step, the query types itself in, press Run. */
+const STEPS = [
+  {
+    title: 'First query',
+    note: 'Curly braces and one field. That is a GraphQL query.',
+    query: `# 1. Your first query
+{
+  hello
+}`,
+  },
+  {
+    title: 'Write it together',
+    live: true,
+    note: 'Type this one with the room. Open a brace, name the thing, open a brace, pick a field, close both. Click the step again to have it typed for you.',
+    query: `{
+  planets {
+    name
+  }
+}`,
+  },
+  {
+    title: 'Go deeper',
+    note: 'Planets have moons. Ask for them inside the planet. Still one request.',
+    query: `# 3. Nested data, still one request
+{
+  planets {
+    name
+    moons {
+      name
+    }
+  }
+}`,
+  },
+  {
+    title: 'One planet',
+    note: 'Arguments. Ask for one planet by name and pick the details you want.',
+    query: `# 4. Arguments: point at one thing
+{
+  planet(name: "Mars") {
+    name
+    nickname
+    temperatureC
+    moons {
+      name
+    }
+    funFact
+    missions
+  }
+}`,
+  },
+  {
+    title: 'Variables',
+    note: 'Same query, but the name comes from outside. This is how real apps send queries. Change Jupiter to Saturn in the box and run again.',
+    query: `# 5. Variables: the query stays the same
+query ($name: String!) {
+  planet(name: $name) {
+    name
+    nickname
+    moons {
+      name
+    }
+  }
+}`,
+    variables: '{ "name": "Jupiter" }',
+  },
+  {
+    title: 'Pluto and null',
+    note: 'Pluto is not a planet, so you get null. That is allowed: in the schema, planet has no ! at the end. Fields with ! are never null.',
+    query: `# 6. Sorry, Pluto
+{
+  planet(name: "Pluto") {
+    name
+    nickname
+  }
+}`,
+  },
+  {
+    title: 'Mutation',
+    note: 'Queries read. Mutations write. Same shape, one different word. Run step 4 again afterwards and look at missions.',
+    query: `# 7. Mutations: write something
+mutation {
+  launch(to: "Mars") {
+    id
+    status
+    destination {
+      name
+      missions
+    }
+  }
+}`,
+  },
+  {
+    title: 'Subscription',
+    note: 'Queries ask once. Subscriptions keep the line open. Run this, then go back to step 7 and launch. Watch the updates arrive on their own.',
+    query: `# 8. Subscriptions: keep the line open
+subscription {
+  missionUpdates {
+    id
+    status
+    destination {
+      name
+    }
+  }
+}`,
+  },
+];
+
+const $ = (id) => document.getElementById(id);
+const q = $('q'), hl = $('hl'), out = $('out');
+let typing = null, restPlanetsBytes = null, currentStep = -1;
+
+/* highlighting */
+const esc = (s) => s.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+function highlightGraphQL(src) {
+  const re = /(#[^\n]*)|("(?:[^"\\]|\\.)*")|(\b(?:query|mutation|subscription|fragment|on)\b)|(\b-?\d+(?:\.\d+)?\b)|(\b[A-Z][A-Z0-9_]+\b)|([A-Za-z_]\w*)(?=\s*:)|([A-Za-z_]\w*)|([{}()\[\]:!,=])/g;
+  let o = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    o += esc(src.slice(last, m.index));
+    const [t, com, str, kw, num, en, arg, field] = m;
+    const cls = com ? 'tok-comment' : str ? 'tok-str' : kw ? 'tok-kw' : num ? 'tok-num' : en ? 'tok-enum' : arg ? 'tok-arg' : field ? 'tok-field' : 'tok-punct';
+    o += `<span class="${cls}">${esc(t)}</span>`; last = m.index + t.length;
+  }
+  return o + esc(src.slice(last)) + '\n';
+}
+function highlightSDL(src) {
+  const re = /("""[\s\S]*?"""|"[^"\n]*")|(#[^\n]*)|(\b(?:type|enum|input|interface|union|scalar|schema|extend)\b)|(\b[A-Z]\w*\b)|(!)|([{}()\[\]:,])/g;
+  let o = '', last = 0, m;
+  while ((m = re.exec(src))) {
+    o += esc(src.slice(last, m.index));
+    const [t, doc, com, kw, type, bang] = m;
+    const cls = doc || com ? 'tok-doc' : kw ? 'tok-kw' : type ? 'tok-type' : bang ? 'tok-bang' : 'tok-punct';
+    o += `<span class="${cls}">${esc(t)}</span>`; last = m.index + t.length;
+  }
+  return o + esc(src.slice(last));
+}
+function highlightJSON(text) {
+  return text.replace(/("(?:[^"\\]|\\.)*")(\s*:)?|(\btrue\b|\bfalse\b)|(\bnull\b)|(-?\d+(?:\.\d+)?(?:e[+-]?\d+)?)|([{}\[\],])/g,
+    (m, str, colon, bool, nul, num, punct) => {
+      if (str) return colon ? `<span class="j-key">${esc(str)}</span><span class="j-punct">${colon}</span>` : `<span class="j-str">${esc(str)}</span>`;
+      if (bool) return `<span class="j-bool">${bool}</span>`;
+      if (nul) return `<span class="j-null">null</span>`;
+      if (num) return `<span class="j-num">${num}</span>`;
+      return `<span class="j-punct">${punct}</span>`;
+    });
+}
+function syncEditor() { hl.innerHTML = highlightGraphQL(q.value); hl.scrollTop = q.scrollTop; hl.scrollLeft = q.scrollLeft; }
+q.addEventListener('input', syncEditor);
+q.addEventListener('scroll', syncEditor);
+
+/* typewriter */
+function typeInto(text) {
+  if (typing) typing.cancel();
+  let i = 0, cancelled = false;
+  q.value = ''; syncEditor();
+  const tick = () => {
+    if (cancelled) return;
+    const inComment = /#[^\n]*$/.test(text.slice(0, i + 1));
+    i = Math.min(text.length, i + (inComment ? 3 : 1));
+    q.value = text.slice(0, i); syncEditor(); q.scrollTop = q.scrollHeight;
+    if (i < text.length) setTimeout(tick, inComment ? 8 : 14);
+    else { typing = null; q.focus(); q.setSelectionRange(q.value.length, q.value.length); }
+  };
+  typing = { cancel: () => { cancelled = true; q.value = text; syncEditor(); typing = null; } };
+  tick();
+}
+q.addEventListener('keydown', () => typing && typing.cancel());
+q.addEventListener('mousedown', () => typing && typing.cancel());
+
+/* steps */
+const stepsBar = $('steps'), raceBtn = $('btnRace');
+STEPS.forEach((s, i) => {
+  const b = document.createElement('button');
+  b.className = 'step'; b.innerHTML = `<span class="n">${i + 1}</span>${s.title}`;
+  b.addEventListener('click', () => loadStep(i));
+  stepsBar.insertBefore(b, raceBtn);
+});
+function loadStep(i) {
+  const again = currentStep === i;
+  currentStep = i;
+  [...stepsBar.querySelectorAll('.step:not(.race)')].forEach((b, j) => b.classList.toggle('active', j === i));
+  $('stepTitle').textContent = `${i + 1} / ${STEPS.length}`;
+  $('stepNote').textContent = STEPS[i].note;
+  $('varsInput').value = STEPS[i].variables || '';
+  if (STEPS[i].live && !again) {
+    // Leave the editor empty so the speaker types it live. The target sits behind the cursor.
+    if (typing) typing.cancel();
+    q.value = ''; q.placeholder = STEPS[i].query; syncEditor(); q.focus();
+  } else {
+    q.placeholder = '';
+    typeInto(STEPS[i].query);
+  }
+  syncVars();
+}
+function syncVars() { $('vars').classList.toggle('show', /\$\w+/.test(q.value) || !!$('varsInput').value); }
+q.addEventListener('input', syncVars);
+
+/* running */
+async function gql(query, variables) {
+  const t0 = performance.now();
+  const res = await fetch('/graphql', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json' }, body: JSON.stringify({ query, variables }) });
+  const text = await res.text();
+  return { text, json: JSON.parse(text), ms: performance.now() - t0, bytes: new TextEncoder().encode(text).length };
+}
+const fmtBytes = (b) => (b >= 1024 ? `${(b / 1024).toFixed(1)} KB` : `${b} B`);
+
+async function run() {
+  if (typing) typing.cancel();
+  const query = q.value.trim();
+  if (!query) return;
+  $('status').textContent = 'sending'; $('btnRun').disabled = true;
+  try {
+    let variables;
+    const raw = $('varsInput').value.trim();
+    if (raw) { try { variables = JSON.parse(raw); } catch { throw new Error('Variables box is not valid JSON.'); } }
+    if (/^\s*(#[^\n]*\n\s*)*subscription\b/.test(query)) { await subscribe(query, variables); return; }
+    const r = await gql(query, variables);
+    out.classList.remove('empty');
+    out.innerHTML = highlightJSON(JSON.stringify(r.json, null, 2));
+    const hasErr = Array.isArray(r.json.errors) && r.json.errors.length;
+    $('status').textContent = hasErr ? 'errors' : '200 OK';
+    renderStats(r);
+    universe.show(r.json, query);
+  } catch (e) {
+    out.classList.remove('empty'); out.textContent = String(e); $('status').textContent = 'error';
+  } finally { $('btnRun').disabled = false; }
+}
+
+function renderStats(r) {
+  const root = (r.json.data && Object.keys(r.json.data)) || [];
+  let html = `<span><b>1</b> request</span><span><b>${fmtBytes(r.bytes)}</b></span><span><b>${Math.round(r.ms)}</b> ms</span>`;
+  if (root.includes('planets') && restPlanetsBytes) {
+    html += `<span class="rest">The REST version, GET /api/planets, is <b>${fmtBytes(restPlanetsBytes)}</b>. You used ${Math.max(1, Math.round((100 * r.bytes) / restPlanetsBytes))}% of it.</span>`;
+  }
+  $('stats').innerHTML = html;
+}
+
+/* The universe. It draws only what came back in the response. */
+const PLANET_ORDER = ['Mercury', 'Venus', 'Earth', 'Mars', 'Jupiter', 'Saturn', 'Uranus', 'Neptune'];
+const PLANET_STYLE = {
+  Mercury: { c: '#b8b2a7', c2: '#6d6760', size: 7 },
+  Venus:   { c: '#f0d3a0', c2: '#b08a4f', size: 11 },
+  Earth:   { c: '#5fa8ff', c2: '#1d4f9e', size: 12, earth: true },
+  Mars:    { c: '#e06a44', c2: '#8a2f18', size: 9 },
+  Jupiter: { c: '#e4b27a', c2: '#8f5a2e', size: 26, bands: true },
+  Saturn:  { c: '#efd9a0', c2: '#a58a4f', size: 22, rings: true },
+  Uranus:  { c: '#a6e3ee', c2: '#3f8f9e', size: 16 },
+  Neptune: { c: '#5a7dff', c2: '#22378f', size: 15 },
+  Unknown: { c: '#8a94ad', c2: '#3f4557', size: 12 },
+};
+const SCALAR_LABEL = {
+  nickname: (v) => `"${v}"`,
+  temperatureC: (v) => `${v}°C`,
+  distanceFromSunAU: (v) => `${v} AU from the Sun`,
+  diameterKm: (v) => `${v.toLocaleString()} km across`,
+  dayLengthHours: (v) => `${v} hour day`,
+  color: (v) => v,
+  funFact: (v) => v,
+  missions: (v) => `${v} mission${v === 1 ? '' : 's'} launched today`,
+};
+
+const universe = (() => {
+  const canvas = $('space'), ctx = canvas.getContext('2d');
+  let W = 0, H = 0, dpr = 1;
+  const stars = [];
+  const state = { mode: 'idle', planets: [], since: performance.now(), rocket: null, note: '' };
+
+  function resize() {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = W * dpr; canvas.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!stars.length) for (let i = 0; i < 320; i++) stars.push({ x: Math.random(), y: Math.random(), r: Math.random() * 1.2 + .3, p: Math.random() * 6.28, s: .5 + Math.random() * 1.5 });
+  }
+  window.addEventListener('resize', resize); resize();
+
+  function stageRect() {
+    const r = $('stage').getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height, cx: r.left + r.width / 2, cy: r.top + r.height / 2 - 24 };
+  }
+
+  function extract(json, query) {
+    const data = json.data || {};
+    const list = Array.isArray(data.planets) ? data.planets : data.planet ? [data.planet] : data.launch?.destination ? [data.launch.destination] : [];
+    const argName = (query.match(/planet\s*\(\s*name\s*:\s*"([^"]+)"/) || [])[1];
+    return list.map((p, i) => {
+      const name = p.name || (data.planets ? PLANET_ORDER[i] : argName && PLANET_ORDER.find((n) => n.toLowerCase() === argName.toLowerCase()));
+      return {
+        name: p.name || null, key: name || 'Unknown',
+        moons: Array.isArray(p.moons) ? p.moons : null,
+        scalars: Object.entries(p).filter(([k, v]) => k !== 'name' && k !== 'moons' && v != null && typeof v !== 'object').map(([k, v]) => SCALAR_LABEL[k] ? SCALAR_LABEL[k](v) : `${k}: ${v}`),
+        angle: i * 2.39996 + 0.6,
+      };
+    });
+  }
+
+  function show(json, query) {
+    const data = json.data || {};
+    state.since = performance.now();
+    const planets = extract(json, query);
+    const argName = (query.match(/planet\s*\(\s*name\s*:\s*"([^"]+)"/) || [])[1];
+
+    if (data.launch) {
+      const key = data.launch.destination?.name || (query.match(/to\s*:\s*"([^"]+)"/) || [])[1] || 'Mars';
+      state.mode = 'launch'; state.planets = planets.length ? planets : [{ name: key, key, moons: null, scalars: [], angle: 0 }];
+      state.planets[0].key = key; state.rocket = { t0: performance.now() };
+      const n = data.launch.destination?.missions;
+      say(`Mission <b>#${data.launch.id ?? '?'}</b> ${String(data.launch.status || 'launched').toLowerCase()} to <b>${esc(key)}</b>.${n != null ? ` That planet now has <b>${n}</b> mission${n === 1 ? '' : 's'}.` : ''}`);
+    } else if (typeof data.hello === 'string') {
+      state.mode = 'hello'; state.planets = []; state.rocket = { t0: performance.now() };
+      say(data.hello);
+    } else if (planets.length > 1) {
+      state.mode = 'system'; state.planets = planets;
+      const named = planets.filter((p) => p.name).length, moons = planets.some((p) => p.moons);
+      say(moons ? `<b>${planets.length} planets</b> with their moons. Still <b>one request</b>.`
+        : named ? `<b>${planets.length} planets</b>, with exactly the fields you asked for.`
+        : `${planets.length} planets, but you did not ask for <b>name</b>, so there is no way to tell which is which.`);
+    } else if (planets.length === 1) {
+      state.mode = 'single'; state.planets = planets;
+      say(`Locked on <b>${planets[0].key}</b>.`);
+    } else if ('planet' in data && data.planet === null) {
+      state.mode = 'null'; state.planets = []; state.note = argName || '?';
+      say(/pluto/i.test(argName || '') ? `Pluto is not a planet, so you get <b>null</b>. The schema allows it.` : `No planet called <b>${esc(argName || '?')}</b>. You get <b>null</b>, not an error.`);
+    } else {
+      state.mode = 'idle'; state.planets = [];
+      say('Nothing to draw from that one. Try asking for <b>planets</b>.');
+    }
+  }
+  function say(html) { $('caption').innerHTML = html; }
+
+  function listening() {
+    state.mode = 'listening'; state.planets = []; state.since = performance.now();
+    say('Line open. Waiting for the server to say something. Go to step 7 and launch a mission.');
+  }
+  // A subscription event arrived. Only start a new rocket if one is not already flying.
+  function event(m) {
+    const key = m.destination?.name || 'Mars';
+    const flying = state.mode === 'launch' && state.rocket;
+    if (m.status === 'LAUNCHED' && !flying) {
+      state.mode = 'launch'; state.since = performance.now(); state.rocket = { t0: performance.now() };
+      state.planets = [{ name: key, key, moons: null, scalars: [], angle: 0 }];
+    }
+    const words = { LAUNCHED: 'has launched', IN_FLIGHT: 'is in flight', LANDED: 'has landed' };
+    say(`Update from the server: mission <b>#${esc(String(m.id ?? '?'))}</b> ${words[m.status] || m.status} ${m.status === 'LANDED' ? 'on' : 'to'} <b>${esc(key)}</b>. You did not ask. It just told you.`);
+  }
+
+  function drawStars(t) {
+    for (const s of stars) {
+      ctx.globalAlpha = .25 + .55 * Math.abs(Math.sin(t * .0006 * s.s + s.p));
+      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, 6.28); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+  function drawSun(x, y, r) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r * 3);
+    g.addColorStop(0, 'rgba(255,220,120,.45)'); g.addColorStop(.4, 'rgba(255,160,60,.12)'); g.addColorStop(1, 'rgba(255,120,40,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r * 3, 0, 6.28); ctx.fill();
+    const g2 = ctx.createRadialGradient(x - r * .3, y - r * .3, r * .1, x, y, r);
+    g2.addColorStop(0, '#fff6d0'); g2.addColorStop(.6, '#ffc94d'); g2.addColorStop(1, '#ff8a2a');
+    ctx.fillStyle = g2; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+  }
+  function drawPlanet(x, y, r, style) {
+    if (r <= 0) return;
+    const gl = ctx.createRadialGradient(x, y, r * .8, x, y, r * 2);
+    gl.addColorStop(0, hexA(style.c, .22)); gl.addColorStop(1, hexA(style.c, 0));
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(x, y, r * 2, 0, 6.28); ctx.fill();
+    if (style.rings) { ctx.save(); ctx.translate(x, y); ctx.rotate(-.35); ctx.scale(1, .32); ctx.strokeStyle = hexA('#e8d8a8', .55); ctx.lineWidth = r * .55; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, Math.PI, 2 * Math.PI); ctx.stroke(); ctx.restore(); }
+    const g = ctx.createRadialGradient(x - r * .35, y - r * .35, r * .1, x, y, r);
+    g.addColorStop(0, lighten(style.c, .25)); g.addColorStop(.55, style.c); g.addColorStop(1, style.c2);
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+    if (style.bands) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.clip(); ctx.globalAlpha = .28; ctx.fillStyle = style.c2; for (let i = -3; i <= 3; i += 2) ctx.fillRect(x - r, y + i * r * .22, r * 2, r * .12); ctx.globalAlpha = .5; ctx.fillStyle = '#c95a3a'; ctx.beginPath(); ctx.ellipse(x + r * .3, y + r * .3, r * .28, r * .14, 0, 0, 6.28); ctx.fill(); ctx.restore(); }
+    if (style.earth) { ctx.save(); ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.clip(); ctx.fillStyle = 'rgba(90,200,110,.85)'; ctx.beginPath(); ctx.ellipse(x - r * .25, y - r * .15, r * .32, r * .42, .6, 0, 6.28); ctx.fill(); ctx.beginPath(); ctx.ellipse(x + r * .4, y + r * .35, r * .28, r * .2, -.4, 0, 6.28); ctx.fill(); ctx.restore(); }
+    if (style.rings) { ctx.save(); ctx.translate(x, y); ctx.rotate(-.35); ctx.scale(1, .32); ctx.strokeStyle = hexA('#f3e6bf', .7); ctx.lineWidth = r * .55; ctx.beginPath(); ctx.arc(0, 0, r * 1.75, 0, Math.PI); ctx.stroke(); ctx.restore(); }
+    const sh = ctx.createRadialGradient(x - r * .5, y - r * .5, r * .2, x, y, r * 1.05);
+    sh.addColorStop(0, 'rgba(0,0,0,0)'); sh.addColorStop(1, 'rgba(0,0,0,.55)');
+    ctx.fillStyle = sh; ctx.beginPath(); ctx.arc(x, y, r, 0, 6.28); ctx.fill();
+  }
+
+  const SANS = () => getComputedStyle(document.body).fontFamily;
+  const MONO = '"SF Mono", ui-monospace, Menlo, Consolas, monospace';
+  function label(x, y, text, o = {}) {
+    ctx.font = `${o.weight || 500} ${o.size || 13}px ${o.mono ? MONO : SANS()}`;
+    ctx.textAlign = o.align || 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = o.color || '#f8f7fc'; ctx.fillText(text, x, y);
+  }
+  function wrap(text, max) { const words = text.split(' '), lines = []; let cur = ''; for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > max && cur) { lines.push(cur); cur = w; } else cur = t; } if (cur) lines.push(cur); return lines; }
+
+  function frame(t) {
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#121212'; ctx.fillRect(0, 0, W, H);
+    const S = stageRect();
+    // faint purple glow behind the stage, matching the theme
+    const bg = ctx.createRadialGradient(S.cx, S.cy, 0, S.cx, S.cy, Math.max(S.w, S.h) * .7);
+    bg.addColorStop(0, 'rgba(110,51,235,.10)'); bg.addColorStop(1, 'rgba(110,51,235,0)');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    drawStars(t);
+
+    const age = Math.min(1, (t - state.since) / 700);
+    const ease = 1 - Math.pow(1 - age, 3);
+
+    if (state.mode === 'system') {
+      const n = state.planets.length;
+      const maxR = Math.min(S.w / 2, S.h / 2 / .55) - 80;
+      drawSun(S.cx, S.cy, 24);
+      state.planets.forEach((p, i) => {
+        const orbit = 70 + (maxR - 70) * (i + 1) / n;
+        const speed = .00035 / Math.pow((i + 1) / n, .8);
+        const a = p.angle + t * speed;
+        const x = S.cx + Math.cos(a) * orbit, y = S.cy + Math.sin(a) * orbit * .55;
+        ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(S.cx, S.cy, orbit, orbit * .55, 0, 0, 6.28); ctx.stroke();
+        const st = PLANET_STYLE[p.key] || PLANET_STYLE.Unknown;
+        const r = st.size * ease;
+        ctx.globalAlpha = ease;
+        drawPlanet(x, y, r, st);
+        if (p.moons) p.moons.forEach((m, j) => {
+          const ma = t * (.0025 + j * .0006) + j * 2.1, mr = r + 8 + j * 6;
+          ctx.fillStyle = '#d9dff0'; ctx.beginPath(); ctx.arc(x + Math.cos(ma) * mr, y + Math.sin(ma) * mr * .6, 2.2, 0, 6.28); ctx.fill();
+        });
+        let ly = y + r + 8;
+        if (p.name) { label(x, ly, p.name, { size: 13, weight: 600 }); ly += 17; }
+        else { label(x, ly, '?', { size: 15, color: '#9a97a8' }); ly += 19; }
+        if (p.moons) {
+          const names = p.moons.map((m) => m.name).filter(Boolean);
+          const txt = !p.moons.length ? 'no moons' : names.length ? names.join(' · ') : `${p.moons.length} moon${p.moons.length > 1 ? 's' : ''}`;
+          label(x, ly, txt, { size: 11, color: p.moons.length ? '#9a97a8' : '#5f5d6b' }); ly += 15;
+        }
+        p.scalars.slice(0, 2).forEach((s) => { label(x, ly, s.length > 34 ? s.slice(0, 33) + '…' : s, { size: 11, color: '#9a97a8' }); ly += 15; });
+        ctx.globalAlpha = 1;
+      });
+    }
+
+    if (state.mode === 'single' || state.mode === 'launch') {
+      const p = state.planets[0], st = PLANET_STYLE[p.key] || PLANET_STYLE.Unknown;
+      const R = Math.min(120, S.h * .18) * ease;
+      const px = S.cx - S.w * .18, py = S.cy;
+      if (p.moons) p.moons.forEach((m, j) => { const orbit = R + 60 + j * 44; ctx.strokeStyle = 'rgba(255,255,255,.08)'; ctx.beginPath(); ctx.ellipse(px, py, orbit, orbit * .42, 0, 0, 6.28); ctx.stroke(); });
+      drawPlanet(px, py, R, st);
+      if (p.moons) p.moons.forEach((m, j) => {
+        const orbit = R + 60 + j * 44, ma = t * (.0009 - j * .00012) + j * 1.7;
+        const mx = px + Math.cos(ma) * orbit, my = py + Math.sin(ma) * orbit * .42;
+        const mr = (5 + Math.min(8, (m.diameterKm || 2000) / 700)) * ease;
+        drawPlanet(mx, my, mr, { c: '#d9dff0', c2: '#6c7390' });
+        if (m.name) label(mx, my + mr + 5, m.name, { size: 12 });
+      });
+      const cx = S.cx + S.w * .12, cy = S.cy - 90;
+      ctx.globalAlpha = ease;
+      label(cx, cy, p.name || p.key, { size: 32, weight: 700, align: 'left' });
+      let ly = cy + 46;
+      if (p.name === null) { label(cx, ly, "(you did not ask for the name)", { size: 12, color: '#5f5d6b', align: 'left' }); ly += 20; }
+      p.scalars.forEach((s) => {
+        ctx.font = `500 14px ${SANS()}`;
+        wrap(s, Math.min(360, S.w * .36)).forEach((line) => { label(cx, ly, line, { size: 14, align: 'left', color: '#c5c3cf' }); ly += 20; });
+        ly += 6;
+      });
+      if (p.moons) label(cx, ly, p.moons.length ? `${p.moons.length} moon${p.moons.length > 1 ? 's' : ''}` : 'no moons', { size: 13, weight: 600, align: 'left', color: '#9a97a8' });
+      ctx.globalAlpha = 1;
+
+      if (state.mode === 'launch') {
+        // Rocket flies in from the bottom left, lands on the planet, flag goes up.
+        const k = state.rocket ? Math.min(1, (t - state.rocket.t0) / 2200) : 1;
+        const e = 1 - Math.pow(1 - k, 3);
+        const sx = S.x + 60, sy = S.y + S.h - 90;
+        const ex = px - R * .72, ey = py - R * .72;
+        const x = sx + (ex - sx) * e, y = sy + (ey - sy) * e - Math.sin(k * Math.PI) * 120;
+        if (k < 1) {
+          for (let i = 1; i < 12; i++) { const kk = Math.max(0, k - i * .02), ee = 1 - Math.pow(1 - kk, 3); ctx.globalAlpha = (1 - i / 12) * .5; ctx.fillStyle = i < 4 ? '#ffd166' : '#a78bfa'; ctx.beginPath(); ctx.arc(sx + (ex - sx) * ee, sy + (ey - sy) * ee - Math.sin(kk * Math.PI) * 120, 5 - i * .3, 0, 6.28); ctx.fill(); }
+          ctx.globalAlpha = 1;
+          ctx.save(); ctx.translate(x, y); ctx.rotate(.2 - e * .8); ctx.font = '40px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚀', 0, 0); ctx.restore();
+        } else {
+          state.rocket = null;
+          ctx.font = '34px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚩', ex, ey - 14);
+        }
+      }
+    }
+
+    if (state.mode === 'null') {
+      ctx.globalAlpha = ease;
+      label(S.cx, S.cy - 96, 'null', { size: 52, weight: 700, color: '#a78bfa' });
+      label(S.cx, S.cy - 30, `${state.note} is not in this solar system, and that is fine.`, { size: 14, color: '#9a97a8' });
+      // The nullability lesson, straight from the schema.
+      const lx = S.cx - 200, ly = S.cy + 24;
+      label(lx, ly, 'planet(name: String!): Planet', { size: 15, mono: true, align: 'left' });
+      label(lx + 320, ly, 'no !  so it can be null', { size: 13, align: 'left', color: '#9a97a8' });
+      label(lx, ly + 34, 'planets: [Planet!]!', { size: 15, mono: true, align: 'left' });
+      ctx.font = `500 15px ${MONO}`; const w1 = ctx.measureText('planets: [Planet!]').width;
+      label(lx + w1, ly + 34, '!', { size: 15, mono: true, align: 'left', color: '#e10098', weight: 700 });
+      label(lx + 320, ly + 34, 'has !  so it is never null', { size: 13, align: 'left', color: '#9a97a8' });
+      ctx.globalAlpha = 1;
+    }
+
+    if (state.mode === 'hello') {
+      if (state.rocket) {
+        const k = Math.min(1, (t - state.rocket.t0) / 2600), e = 1 - Math.pow(1 - k, 2);
+        const x = S.x + 40 + (S.w - 80) * e, y = S.y + S.h - 80 - (S.h - 160) * e + Math.sin(k * 9) * 8;
+        for (let i = 0; i < 14; i++) { const kk = Math.max(0, e - i * .012); ctx.globalAlpha = (1 - i / 14) * .5; ctx.fillStyle = i < 5 ? '#ffd166' : '#a78bfa'; ctx.beginPath(); ctx.arc(S.x + 40 + (S.w - 80) * kk, S.y + S.h - 80 - (S.h - 160) * kk, 6 - i * .35, 0, 6.28); ctx.fill(); }
+        ctx.globalAlpha = 1;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(-.6); ctx.font = '44px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('🚀', 0, 0); ctx.restore();
+        if (k >= 1) state.rocket = null;
+      } else {
+        label(S.cx, S.cy - 12, 'Houston, we have a query.', { size: 26, weight: 700 });
+      }
+    }
+
+    if (state.mode === 'idle') {
+      label(S.cx, S.cy - 10, 'Run a query to point the telescope.', { size: 14, color: '#5f5d6b' });
+    }
+    if (state.mode === 'listening') {
+      // A slow radar sweep while the line is open.
+      const r = 90 + Math.sin(t * .002) * 6;
+      ctx.strokeStyle = 'rgba(167,139,250,.25)'; ctx.lineWidth = 1;
+      for (let i = 1; i <= 3; i++) { ctx.globalAlpha = .35 / i; ctx.beginPath(); ctx.arc(S.cx, S.cy - 20, r * i, 0, 6.28); ctx.stroke(); }
+      const sweep = (t * .0012) % 6.28;
+      const g = ctx.createConicGradient ? ctx.createConicGradient(sweep, S.cx, S.cy - 20) : null;
+      if (g) { g.addColorStop(0, 'rgba(167,139,250,.35)'); g.addColorStop(.25, 'rgba(167,139,250,0)'); g.addColorStop(1, 'rgba(167,139,250,0)'); ctx.globalAlpha = 1; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(S.cx, S.cy - 20, r * 3, 0, 6.28); ctx.fill(); }
+      ctx.globalAlpha = 1;
+      label(S.cx, S.cy - 30, 'listening', { size: 16, color: '#a78bfa', weight: 600 });
+    }
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+
+  function hexA(hex, a) { const n = parseInt(hex.slice(1), 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
+  function lighten(hex, k) { const n = parseInt(hex.slice(1), 16); const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return `rgb(${Math.min(255, r + (255 - r) * k) | 0},${Math.min(255, g + (255 - g) * k) | 0},${Math.min(255, b + (255 - b) * k) | 0})`; }
+  return { show, listening, event };
+})();
+
+/* subscriptions, over server-sent events */
+let sub = null;
+async function subscribe(query, variables) {
+  stopSub();
+  const ctrl = new AbortController();
+  sub = { ctrl, n: 0 };
+  $('sub').classList.add('show'); $('subList').innerHTML = '';
+  out.classList.add('empty'); out.textContent = 'Listening. Nothing has happened yet. Go to step 7 and launch a mission.';
+  $('status').textContent = 'listening'; $('stats').innerHTML = '<span>line open, <b>0</b> updates</span>';
+  universe.listening();
+  try {
+    const res = await fetch('/graphql', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'text/event-stream' }, body: JSON.stringify({ query, variables }), signal: ctrl.signal });
+    const reader = res.body.getReader(), dec = new TextDecoder(); let buf = '';
+    while (true) {
+      const { value, done } = await reader.read(); if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i; while ((i = buf.indexOf('\n\n')) >= 0) { handleSSE(buf.slice(0, i)); buf = buf.slice(i + 2); }
+    }
+  } catch (e) { if (e.name !== 'AbortError') { out.classList.remove('empty'); out.textContent = String(e); } }
+  finally { if (sub && sub.ctrl === ctrl) stopSub(); }
+}
+function handleSSE(chunk) {
+  let event = 'message', data = '';
+  for (const line of chunk.split('\n')) { if (line.startsWith('event:')) event = line.slice(6).trim(); else if (line.startsWith('data:')) data += line.slice(5).trim(); }
+  if (event === 'next' && data) onSubEvent(JSON.parse(data));
+  if (event === 'complete') stopSub();
+}
+function onSubEvent(json) {
+  if (!sub) return;
+  sub.n++;
+  out.classList.remove('empty'); out.innerHTML = highlightJSON(JSON.stringify(json, null, 2));
+  $('stats').innerHTML = `<span>line open, <b>${sub.n}</b> update${sub.n === 1 ? '' : 's'}</span>`;
+  const m = json.data && json.data.missionUpdates;
+  if (m) {
+    const li = document.createElement('li');
+    li.innerHTML = `<span class="t">${new Date().toLocaleTimeString()}</span>mission #${esc(String(m.id ?? '?'))} <b>${esc(String(m.status ?? ''))}</b>${m.destination?.name ? (m.status === 'LANDED' ? ' on ' : ' to ') + esc(m.destination.name) : ''}`;
+    $('subList').prepend(li);
+    universe.event(m);
+  }
+}
+function stopSub() {
+  if (sub) { sub.ctrl.abort(); sub = null; }
+  $('sub').classList.remove('show');
+  if ($('status').textContent === 'listening') $('status').textContent = 'closed';
+}
+$('btnSubStop').addEventListener('click', stopSub);
+
+/* schema drawer */
+$('btnSchema').addEventListener('click', () => $('drawer').classList.toggle('open'));
+$('btnCloseDrawer').addEventListener('click', () => $('drawer').classList.remove('open'));
+fetch('/schema.graphql').then((r) => r.text()).then((t) => { $('sdl').innerHTML = highlightSDL(t); });
+
+/* finale */
+const RACE_QUERY = `{
+  planet(name: "Mars") {
+    name
+    moons {
+      name
+    }
+  }
+}`;
+$('btnRace').addEventListener('click', () => { resetRace(); $('raceBg').classList.add('open'); });
+$('btnRaceClose').addEventListener('click', () => $('raceBg').classList.remove('open'));
+$('raceBg').addEventListener('click', (e) => { if (e.target === $('raceBg')) $('raceBg').classList.remove('open'); });
+$('btnRaceStart').addEventListener('click', startRace);
+function resetRace() {
+  ['restHops', 'gqlHops', 'restResult', 'gqlResult', 'verdict'].forEach((id) => ($(id).innerHTML = ''));
+  $('restBar').style.width = $('gqlBar').style.width = '0%';
+  $('btnRaceStart').disabled = false;
+}
+function hop(container, text) { const el = document.createElement('div'); el.className = 'hop pending'; el.innerHTML = `<span>${esc(text)}</span><span class="m"></span>`; container.appendChild(el); return el; }
+async function fetchREST(path) { const t0 = performance.now(); const res = await fetch(path); const text = await res.text(); return { json: JSON.parse(text), ms: performance.now() - t0, bytes: new TextEncoder().encode(text).length }; }
+function animateBar(bar, isDone) { const t0 = performance.now(); const step = () => { if (isDone()) { bar.style.width = '100%'; return; } bar.style.width = `${Math.min(92, (1 - Math.exp(-(performance.now() - t0) / 700)) * 100)}%`; requestAnimationFrame(step); }; requestAnimationFrame(step); }
+async function startRace() {
+  resetRace(); $('btnRaceStart').disabled = true;
+  let restDone = false, gqlDone = false;
+  animateBar($('restBar'), () => restDone); animateBar($('gqlBar'), () => gqlDone);
+  const restRun = (async () => {
+    const t0 = performance.now(); let bytes = 0, hops = 0;
+    const go = async (path) => { const h = hop($('restHops'), `GET ${path}`); const r = await fetchREST(path); bytes += r.bytes; hops++; h.classList.remove('pending'); h.querySelector('.m').textContent = `${fmtBytes(r.bytes)} · ${Math.round(r.ms)} ms`; return r.json; };
+    const mars = await go('/api/planets/mars');
+    for (const link of mars.moons) await go(link);
+    restDone = true;
+    $('restResult').innerHTML = `<span><b>${hops}</b> round trips</span><span><b>${fmtBytes(bytes)}</b></span><span><b>${Math.round(performance.now() - t0)}</b> ms</span>`;
+    return { bytes, hops };
+  })();
+  const gqlRun = (async () => {
+    const h = hop($('gqlHops'), 'POST /graphql'); const r = await gql(RACE_QUERY); gqlDone = true;
+    h.classList.remove('pending'); h.querySelector('.m').textContent = `${fmtBytes(r.bytes)} · ${Math.round(r.ms)} ms`;
+    $('gqlResult').innerHTML = `<span><b>1</b> round trip</span><span><b>${fmtBytes(r.bytes)}</b></span><span><b>${Math.round(r.ms)}</b> ms</span>`;
+    return { bytes: r.bytes };
+  })();
+  const [rest, g] = await Promise.all([restRun, gqlRun]);
+  $('verdict').innerHTML = `Same answer. GraphQL did it in <b>1</b> request instead of <b>${rest.hops}</b>, using <b>${((100 * g.bytes) / rest.bytes).toFixed(1)}%</b> of the bytes.`;
+}
+
+/* keys */
+$('btnRun').addEventListener('click', run);
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); run(); }
+  if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); loadStep(Math.min(STEPS.length - 1, currentStep + 1)); }
+  if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); loadStep(Math.max(0, currentStep - 1)); }
+  if (e.key === 'Escape') { $('drawer').classList.remove('open'); $('raceBg').classList.remove('open'); }
+});
+fetch('/api/planets').then((r) => r.text()).then((t) => { restPlanetsBytes = new TextEncoder().encode(t).length; });
+loadStep(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+# GraphQL Mission Control. Point the telescope at exactly what you want.
+
+type Planet {
+  name: String!
+  nickname: String!
+  "Hex colour, for the telescope."
+  color: String!
+  diameterKm: Int!
+  distanceFromSunAU: Float!
+  "Average surface temperature. Venus is not a holiday destination."
+  temperatureC: Int!
+  dayLengthHours: Int!
+  moons: [Moon!]!
+  funFact: String!
+  "How many missions Mission Control has launched there today."
+  missions: Int!
+}
+
+type Mission {
+  id: ID!
+  destination: Planet!
+  "LAUNCHED, then IN_FLIGHT, then LANDED."
+  status: String!
+}
+
+type Moon {
+  name: String!
+  diameterKm: Int!
+}
+
+type Query {
+  "Say hi to Houston."
+  hello: String!
+  "All eight planets. The ! means this is never null."
+  planets: [Planet!]!
+  "One planet by name. No ! at the end, so this can be null. Looking at you, Pluto."
+  planet(name: String!): Planet
+}
+
+type Mutation {
+  "Queries read. Mutations write. Launch a mission to a planet."
+  launch(to: String!): Mission!
+}
+
+type Subscription {
+  "Keep the line open. The server sends every mission update as it happens."
+  missionUpdates: Mission!
+}
