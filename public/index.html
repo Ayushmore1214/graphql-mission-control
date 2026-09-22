@@ -294,20 +294,9 @@ query ($name: String = "Jupiter") {
 }`,
   },
   {
-    title: 'Pluto and null',
-    note: 'Pluto is not a planet, so you get null. That is allowed: in the schema, planet has no ! at the end. Fields with ! are never null.',
-    query: `# 6. Sorry, Pluto
-{
-  planet(name: "Pluto") {
-    name
-    nickname
-  }
-}`,
-  },
-  {
     title: 'Mutation',
     note: 'Queries read. Mutations write. Same shape, one different word. Run step 4 again afterwards and look at missions.',
-    query: `# 7. Mutations: write something
+    query: `# 6. Mutations: write something
 mutation {
   launch(to: "Mars") {
     id
@@ -315,20 +304,6 @@ mutation {
     destination {
       name
       missions
-    }
-  }
-}`,
-  },
-  {
-    title: 'Subscription',
-    note: 'Queries ask once. Subscriptions keep the line open. Run this, then go back to step 7 and launch. Watch the updates arrive on their own.',
-    query: `# 8. Subscriptions: keep the line open
-subscription {
-  missionUpdates {
-    id
-    status
-    destination {
-      name
     }
   }
 }`,
@@ -550,6 +525,11 @@ const universe = (() => {
     } else if ('planet' in data && data.planet === null) {
       state.mode = 'null'; state.planets = []; state.note = argName || '?';
       say(/pluto/i.test(argName || '') ? `Pluto is not a planet, so you get <b>null</b>. The schema allows it.` : `No planet called <b>${esc(argName || '?')}</b>. You get <b>null</b>, not an error.`);
+    } else if (json.errors && json.errors.length) {
+      // A query the schema rejected. Show why, since that is the lesson.
+      state.mode = 'invalid'; state.planets = [];
+      state.note = json.errors[0].message;
+      say('The server checked this against the schema and said no.');
     } else {
       state.mode = 'idle'; state.planets = [];
       say('Nothing to draw from that one. Try asking for <b>planets</b>.');
@@ -724,6 +704,15 @@ const universe = (() => {
 
     if (state.mode === 'idle') {
       label(S.cx, S.cy - 10, 'Run a query to point the telescope.', { size: 14, color: '#5f5d6b' });
+    }
+    if (state.mode === 'invalid') {
+      ctx.globalAlpha = ease;
+      label(S.cx, S.cy - 70, 'not a valid query', { size: 30, weight: 700, color: '#ff8fa3' });
+      ctx.font = `500 15px ${SANS()}`;
+      let ly = S.cy - 16;
+      wrap(state.note, Math.min(620, S.w * .8)).forEach((line) => { label(S.cx, ly, line, { size: 15, color: '#c5c3cf' }); ly += 24; });
+      label(S.cx, ly + 14, 'Nothing ran. The schema caught it first.', { size: 13, color: '#9a97a8' });
+      ctx.globalAlpha = 1;
     }
     if (state.mode === 'listening') {
       // A slow radar sweep while the line is open.

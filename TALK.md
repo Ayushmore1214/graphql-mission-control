@@ -116,19 +116,9 @@ Look at the top line. query, then in brackets, dollar name, colon, String, equal
 
 "Saturn. The query itself did not change. Only the variable did. In a real app that value comes from the user, a dropdown or a search box, and the app sends it along with the query. The query is written once and reused forever."
 
-### STEP 6 — Types, Null, and the Exclamation Mark (1 minute)
+### STEP 6 — Mutations (1 minute)
 
-[Click step 6. Press Run. A big null appears.]
-
-"Every field in a GraphQL schema has a type. String for text. Int for whole numbers. Float for decimals. Boolean for true or false. ID for unique identifiers. You always know what kind of value is coming back.
-
-Now there is one more thing the schema tells you. Whether a value can be null or not. I ask for Pluto. Pluto is not in our dataset. I get null back. Not a crash, just null. And the schema warned me this could happen.
-
-In the schema, planet has no exclamation mark after its type, so it is allowed to be null. The exclamation mark after a type is a promise. It means this value will always be there. If there is no exclamation mark, the value might be null and you should handle that. Your code knows this before you write a single line of logic because the schema tells you."
-
-### STEP 7 — Mutations (1 minute)
-
-[Click step 7. Press Run. A rocket flies in, lands on Mars, a flag goes up. Wait for the flag.]
+[Click step 6. Press Run. A rocket flies in, lands on Mars, a flag goes up. Wait for the flag.]
 
 "Everything so far has been reading. Now let me change something.
 
@@ -138,27 +128,9 @@ And look at that. missions went from 0 to 1. The server updated the data and gav
 
 The reason queries and mutations are separate keywords is so it is always obvious which requests are safe to repeat and which ones actually do something. Queries are always safe to run again. Mutations do things."
 
-### STEP 8 — Subscriptions (1 minute)
-
-[Click step 8. Press Run. A radar sweep appears with the word "listening", and a strip under the response says "Listening to missionUpdates".]
-
-"The third and last operation type. A subscription.
-
-I run it and nothing comes back yet. That is correct. The connection is open and I am waiting. The server will tell me when something happens, I do not need to keep asking.
-
-Now I trigger a mission launch and watch what comes in."
-
-[Click step 7. Press Run. While the rocket flies, three lines appear in the strip: LAUNCHED, IN_FLIGHT, LANDED. This is mission #2.]
-
-"Launched. In flight. Landed. Three updates, one after another, in exactly the shape I asked for. I asked once and the data came to me.
-
-This is the real time layer of GraphQL. Live location updates, new messages, score changes, anything that happens continuously. You open one subscription and the server keeps you informed."
-
-[Press Stop in the strip.]
-
 ## PART 4 — WRAP UP (30 seconds)
 
-So that is GraphQL. You write a query describing what you want. The response comes back in exactly that shape. You control the fields. You nest them to get related data. You pass arguments to get specific things. The schema tells you what exists and whether values can be null. And you have three operations: query to read, mutation to write, subscription to listen.
+So that is GraphQL. You write a query describing what you want. The response comes back in exactly that shape. You control the fields. You nest them to get related data. You pass arguments to get specific things. You use a variable so the value can come from outside. And the schema tells you what exists before you ask for any of it.
 
 Everything I just showed you covers most of what you will use in real GraphQL work. It really does start this simply.
 
@@ -169,17 +141,15 @@ Eeshaan is going to take it from here into the more advanced parts of the ecosys
 Introduction: 0:00 to 3:00
 What is GraphQL: 3:00 to 6:00
 Schema intro: 6:00 to 6:30
-Step 1: 6:30 to 7:30
-Step 2: 7:30 to 9:00
-Step 3: 9:00 to 10:00
-Step 4: 10:00 to 11:00
-Step 5: 11:00 to 12:00
-Step 6: 12:00 to 13:00
-Step 7: 13:00 to 14:00
-Step 8: 14:00 to 15:00
-Wrap up: 15:00 to 15:30
+Step 1 hello: 6:30 to 7:30
+Step 2 write it together: 7:30 to 9:00
+Step 3 nesting: 9:00 to 10:00
+Step 4 one planet: 10:00 to 11:00
+Step 5 variables: 11:00 to 12:00
+Step 6 mutation: 12:00 to 13:00
+Wrap up: 13:00 to 13:30
 
-This is 15:30, one minute over. To land at 14:30: trim Step 2 to 1 minute (skip the temperatureC add and remove) and the intro to 2:30. If still running long, drop Step 8 first, then Step 5. Steps 1, 2, 3, 4, 6 and 7 are the core.
+That leaves a minute of slack before 14:30. If running long, drop Step 5. Steps 1, 2, 3, 4 and 6 are the core.
 
 ---
 
@@ -187,7 +157,7 @@ This is 15:30, one minute over. To land at 14:30: trim Step 2 to 1 minute (skip 
 
 Web page "GraphQL Mission Control" at http://localhost:4000, backed by a real GraphQL server (Node, GraphQL Yoga). Code: https://github.com/Ayushmore1214/graphql-mission-control
 
-Layout: top bar with the title, a Schema button and a GraphiQL link on the right. Left column: Query editor with a Run button, and a Response panel below showing the JSON plus a line like "1 request · 165 B · 205 ms". Right side: a canvas that draws the solar system, only what the query asked for. Bottom bar: eight numbered steps. Clicking a step types its query into the editor, except step 2, which stays empty so the speaker types it live (clicking it again types it). Cmd+Enter or Run runs the query. Escape closes the Schema panel.
+Layout: top bar with the title, a Schema button and a GraphiQL link on the right. Left column: Query editor with a Run button, and a Response panel below showing the JSON plus a line like "1 request · 165 B · 205 ms". Right side: a canvas that draws the solar system, only what the query asked for. Bottom bar: six numbered steps. Clicking a step types its query into the editor, except step 2, which stays empty so the speaker types it live (clicking it again types it). Cmd+Enter or Run runs the query. Escape closes the Schema panel.
 
 Schema:
 ```graphql
@@ -207,10 +177,8 @@ Steps:
 3. Go deeper. `{ planets { name moons { name } } }`. Moons orbit their planets, names listed under each; Mercury and Venus show "no moons". Counter says 1 request.
 4. One planet. `{ planet(name: "Mars") { name nickname temperatureC moons { name } funFact missions } }`. Zooms to Mars with Phobos and Deimos orbiting; right side shows "The Red Planet", -65°C, a fun fact, "0 missions launched today". Response shows missions: 0.
 5. Variables. `query ($name: String = "Jupiter") { planet(name: $name) { name nickname moons { name } } }`. The variable has a default value written in the query. Run: Jupiter with four moons. Change Jupiter to Saturn on the first line and run: Saturn with rings. An empty Variables box also appears under the editor; typing {"name":"Saturn"} there overrides the default, but the talk does not use it.
-6. Pluto and null. `{ planet(name: "Pluto") { name nickname } }` → {"data":{"planet":null}}. Screen: big "null" and the line "Pluto is not in this solar system, and that is fine".
-7. Mutation. `mutation { launch(to: "Mars") { id status destination { name missions } } }`. Rocket flies in from bottom left, lands on Mars, flag goes up. Response: {"data":{"launch":{"id":"1","status":"LAUNCHED","destination":{"name":"Mars","missions":1}}}}. Running step 4 again shows missions: 1.
-8. Subscription. `subscription { missionUpdates { id status destination { name } } }`. On run: radar sweep with the word "listening"; response panel says "Listening. Nothing has happened yet"; a strip says "Listening to missionUpdates" with a Stop button. Clicking step 7 and running again (mission #2) makes three lines appear about a second apart: LAUNCHED, IN_FLIGHT, LANDED. Press Stop to close.
+6. Mutation. `mutation { launch(to: "Mars") { id status destination { name missions } } }`. Rocket flies in from bottom left, lands on Mars, flag goes up. Response: {"data":{"launch":{"id":"1","status":"LAUNCHED","destination":{"name":"Mars","missions":1}}}}. Running step 4 again shows missions: 1.
 
-Also on the page but not used in this talk: a "One request vs. many" button (bottom right) that races REST (3 requests, 2.1 KB) against GraphQL (1 request, 81 B).
+Also on the page but not used in this talk: a "One request vs. many" button (bottom right) that races REST (3 requests, 2.1 KB) against GraphQL (1 request, 81 B). The server also supports a launch mutation subscription (missionUpdates) and nullable lookups like planet(name: "Pluto") returning null, but the talk no longer demos either.
 
 Technical facts: query validation against the schema happens on the server before any resolver runs; the query is still sent to the server. Built-in scalar types: String, Int, Float, Boolean, ID. `!` means non-null. `planet` returns a single nullable Planet; `planets` returns a non-null list of non-null Planets. Mutations in one request run in order; query fields can run in parallel. Subscriptions here use server-sent events over a normal HTTP connection.
