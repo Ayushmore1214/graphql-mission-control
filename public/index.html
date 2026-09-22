@@ -280,10 +280,10 @@ const STEPS = [
 }`,
   },
   {
-    title: 'Variables',
-    note: 'Same query, but the name comes from outside. This is how real apps send queries. Change Jupiter to Saturn in the box and run again.',
+title: 'Variables',
+    note: 'The value comes from a variable, $name. Its default is written in the query. Change Jupiter to Saturn on the first line and run again. The box below can override it.',
     query: `# 5. Variables: the query stays the same
-query ($name: String!) {
+query ($name: String = "Jupiter") {
   planet(name: $name) {
     name
     nickname
@@ -292,7 +292,6 @@ query ($name: String!) {
     }
   }
 }`,
-    variables: '{ "name": "Jupiter" }',
   },
   {
     title: 'Pluto and null',
