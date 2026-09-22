@@ -442,7 +442,8 @@ async function run() {
     let variables;
     const raw = $('varsInput').value.trim();
     if (raw) { try { variables = JSON.parse(raw); } catch { throw new Error('Variables box is not valid JSON.'); } }
-    if (/^\s*(#[^\n]*\n\s*)*subscription\b/.test(query)) { await subscribe(query, variables); return; }
+    // A subscription stays open, so don't wait for it: start it and hand the Run button back.
+    if (/^\s*(#[^\n]*\n\s*)*subscription\b/.test(query)) { subscribe(query, variables); return; }
     const r = await gql(query, variables);
     out.classList.remove('empty');
     out.innerHTML = highlightJSON(JSON.stringify(r.json, null, 2));
