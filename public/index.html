@@ -705,14 +705,6 @@ const universe = (() => {
       ctx.globalAlpha = ease;
       label(S.cx, S.cy - 96, 'null', { size: 52, weight: 700, color: '#a78bfa' });
       label(S.cx, S.cy - 30, `${state.note} is not in this solar system, and that is fine.`, { size: 14, color: '#9a97a8' });
-      // The nullability lesson, straight from the schema.
-      const lx = S.cx - 200, ly = S.cy + 24;
-      label(lx, ly, 'planet(name: String!): Planet', { size: 15, mono: true, align: 'left' });
-      label(lx + 320, ly, 'no !  so it can be null', { size: 13, align: 'left', color: '#9a97a8' });
-      label(lx, ly + 34, 'planets: [Planet!]!', { size: 15, mono: true, align: 'left' });
-      ctx.font = `500 15px ${MONO}`; const w1 = ctx.measureText('planets: [Planet!]').width;
-      label(lx + w1, ly + 34, '!', { size: 15, mono: true, align: 'left', color: '#e10098', weight: 700 });
-      label(lx + 320, ly + 34, 'has !  so it is never null', { size: 13, align: 'left', color: '#9a97a8' });
       ctx.globalAlpha = 1;
     }
 

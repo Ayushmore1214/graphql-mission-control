@@ -118,15 +118,13 @@ Look at the top line. query, then in brackets, dollar name, colon, String, equal
 
 ### STEP 6 — Types, Null, and the Exclamation Mark (1 minute)
 
-[Click step 6. Press Run. A big null appears, with two schema lines under it.]
+[Click step 6. Press Run. A big null appears.]
 
 "Every field in a GraphQL schema has a type. String for text. Int for whole numbers. Float for decimals. Boolean for true or false. ID for unique identifiers. You always know what kind of value is coming back.
 
 Now there is one more thing the schema tells you. Whether a value can be null or not. I ask for Pluto. Pluto is not in our dataset. I get null back. Not a crash, just null. And the schema warned me this could happen.
 
-Look at the two lines on screen. planet, the single one, returns Planet with no exclamation mark, so it can be null. planets, the list, has exclamation marks, so it is never null.
-
-The exclamation mark after a type is a promise. It means this value will always be there. If there is no exclamation mark, the value might be null and you should handle that. Your code knows this before you write a single line of logic because the schema tells you."
+In the schema, planet has no exclamation mark after its type, so it is allowed to be null. The exclamation mark after a type is a promise. It means this value will always be there. If there is no exclamation mark, the value might be null and you should handle that. Your code knows this before you write a single line of logic because the schema tells you."
 
 ### STEP 7 — Mutations (1 minute)
 
@@ -209,7 +207,7 @@ Steps:
 3. Go deeper. `{ planets { name moons { name } } }`. Moons orbit their planets, names listed under each; Mercury and Venus show "no moons". Counter says 1 request.
 4. One planet. `{ planet(name: "Mars") { name nickname temperatureC moons { name } funFact missions } }`. Zooms to Mars with Phobos and Deimos orbiting; right side shows "The Red Planet", -65°C, a fun fact, "0 missions launched today". Response shows missions: 0.
 5. Variables. `query ($name: String = "Jupiter") { planet(name: $name) { name nickname moons { name } } }`. The variable has a default value written in the query. Run: Jupiter with four moons. Change Jupiter to Saturn on the first line and run: Saturn with rings. An empty Variables box also appears under the editor; typing {"name":"Saturn"} there overrides the default, but the talk does not use it.
-6. Pluto and null. `{ planet(name: "Pluto") { name nickname } }` → {"data":{"planet":null}}. Screen: big "null", the line "Pluto is not in this solar system, and that is fine", and two schema lines: `planet(name: String!): Planet` labelled "no ! so it can be null", `planets: [Planet!]!` labelled "has ! so it is never null".
+6. Pluto and null. `{ planet(name: "Pluto") { name nickname } }` → {"data":{"planet":null}}. Screen: big "null" and the line "Pluto is not in this solar system, and that is fine".
 7. Mutation. `mutation { launch(to: "Mars") { id status destination { name missions } } }`. Rocket flies in from bottom left, lands on Mars, flag goes up. Response: {"data":{"launch":{"id":"1","status":"LAUNCHED","destination":{"name":"Mars","missions":1}}}}. Running step 4 again shows missions: 1.
 8. Subscription. `subscription { missionUpdates { id status destination { name } } }`. On run: radar sweep with the word "listening"; response panel says "Listening. Nothing has happened yet"; a strip says "Listening to missionUpdates" with a Stop button. Clicking step 7 and running again (mission #2) makes three lines appear about a second apart: LAUNCHED, IN_FLIGHT, LANDED. Press Stop to close.
 
