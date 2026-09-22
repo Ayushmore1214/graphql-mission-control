@@ -100,9 +100,25 @@ Notice the field changed from planets plural to planet singular. Two different f
 
 "And look at missions: 0. Hold onto that."
 
+### STEP 5 — Variables (1 minute)
+
+[Click step 5. Do not run yet. Point at each part as you say it. A small Variables box appears under the editor with { "name": "Jupiter" }.]
+
+"In step 4 I typed Mars inside the query. A real app cannot do that. The user picks the planet, and the app cannot rewrite the query every time. So the value has to come from outside. That is what a variable is.
+
+Three parts. The top line, query, then dollar name colon String exclamation mark. That declares a variable called name, it is text, and it is required. Inside the field, name colon dollar name. I use the variable instead of a fixed value. And the box at the bottom, name, Jupiter. That is the actual value, sent along with the query."
+
+[Press Run. Jupiter appears with four moons.]
+
+"Jupiter."
+
+[Change Jupiter to Saturn in the box. Press Run. Saturn appears with rings.]
+
+"Saturn. The query text did not change. Only the value did. Every real app sends GraphQL this way. You write the query once and reuse it forever."
+
 ### STEP 6 — Types, Null, and the Exclamation Mark (1 minute)
 
-[Skip step 5. Click step 6. Press Run. A big null appears, with two schema lines under it.]
+[Click step 6. Press Run. A big null appears, with two schema lines under it.]
 
 "Every field in a GraphQL schema has a type. String for text. Int for whole numbers. Float for decimals. Boolean for true or false. ID for unique identifiers. You always know what kind of value is coming back.
 
@@ -159,12 +175,13 @@ Step 1: 6:30 to 7:30
 Step 2: 7:30 to 9:00
 Step 3: 9:00 to 10:00
 Step 4: 10:00 to 11:00
-Step 6: 11:00 to 12:00
-Step 7: 12:00 to 13:00
-Step 8: 13:00 to 14:00
-Wrap up: 14:00 to 14:30
+Step 5: 11:00 to 12:00
+Step 6: 12:00 to 13:00
+Step 7: 13:00 to 14:00
+Step 8: 14:00 to 15:00
+Wrap up: 15:00 to 15:30
 
-If running long drop Step 8 first then Step 3. Steps 1, 2, 4, 6, and 7 are the core. Never cut those.
+This is 15:30, one minute over. To land at 14:30: trim Step 2 to 1 minute (skip the temperatureC add and remove) and the intro to 2:30. If still running long, drop Step 8 first, then Step 5. Steps 1, 2, 3, 4, 6 and 7 are the core.
 
 ---
 
@@ -191,7 +208,7 @@ Steps:
 2. Write it together. Editor empty; type `{ planets { name } }`. Eight named planets appear. 165 B. Note under the response: the REST version (GET /api/planets) is 11.1 KB, you used 1% of it. Adding temperatureC under name shows a temperature under every planet (320 B). Removing it makes them vanish.
 3. Go deeper. `{ planets { name moons { name } } }`. Moons orbit their planets, names listed under each; Mercury and Venus show "no moons". Counter says 1 request.
 4. One planet. `{ planet(name: "Mars") { name nickname temperatureC moons { name } funFact missions } }`. Zooms to Mars with Phobos and Deimos orbiting; right side shows "The Red Planet", -65°C, a fun fact, "0 missions launched today". Response shows missions: 0.
-5. Variables. Not used in this talk.
+5. Variables. `query ($name: String!) { planet(name: $name) { name nickname moons { name } } }`. A Variables box appears under the editor with {"name":"Jupiter"}. Run: Jupiter with four moons. Change Jupiter to Saturn in the box and run: Saturn with rings. The query text never changes.
 6. Pluto and null. `{ planet(name: "Pluto") { name nickname } }` → {"data":{"planet":null}}. Screen: big "null", the line "Pluto is not in this solar system, and that is fine", and two schema lines: `planet(name: String!): Planet` labelled "no ! so it can be null", `planets: [Planet!]!` labelled "has ! so it is never null".
 7. Mutation. `mutation { launch(to: "Mars") { id status destination { name missions } } }`. Rocket flies in from bottom left, lands on Mars, flag goes up. Response: {"data":{"launch":{"id":"1","status":"LAUNCHED","destination":{"name":"Mars","missions":1}}}}. Running step 4 again shows missions: 1.
 8. Subscription. `subscription { missionUpdates { id status destination { name } } }`. On run: radar sweep with the word "listening"; response panel says "Listening. Nothing has happened yet"; a strip says "Listening to missionUpdates" with a Stop button. Clicking step 7 and running again (mission #2) makes three lines appear about a second apart: LAUNCHED, IN_FLIGHT, LANDED. Press Stop to close.
