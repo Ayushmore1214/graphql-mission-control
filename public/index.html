@@ -308,6 +308,20 @@ mutation {
   }
 }`,
   },
+  {
+    title: 'Subscription',
+    note: 'Queries ask once. Subscriptions keep the line open. Run this, then go back to step 6 and launch. The updates arrive on their own.',
+    query: `# 7. Subscriptions: keep the line open
+subscription {
+  missionUpdates {
+    id
+    status
+    destination {
+      name
+    }
+  }
+}`,
+  },
 ];
 
 const $ = (id) => document.getElementById(id);
